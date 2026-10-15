@@ -1,104 +1,98 @@
-import json
 import csv
+import sqlite3
 
-#将学生信息保存到文件
-def save_students(students):
-    with open('students.json', 'w', encoding='utf-8') as f:
-        json.dump(students, f, ensure_ascii=False, indent=4)
 
 
 #添加新的学生信息
-def add_student(students):
-    #输入学生信息
+def add_student():
+    #获取学生信息
     name = input("请输入学生姓名: ")
     grade = input("请输入学生年级: ")
     subject = input("请输入学科: ")
     contact = input("请输入学生联系方式: ")
     note = input("请输入备注: ")
 
-    #存入一个字典student_info
-    student_info = {
-        "name": name,
-        "grade": grade,
-        "subject": subject,
-        "contact": contact,
-        "note": note
-    }
+    #连接数据库
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
 
-    #把字典存入列表students
-    students.append(student_info)
+    #插入数据
+    cursor.execute(
+        "INSERT INTO students (name, grade, subject, contact, note) VALUES (?, ?, ?, ?, ?)",
+        (name, grade, subject, contact, note)
+    )
 
-    #将学生信息保存到文件
-    save_students(students)
-
-
-#从文件读取学生信息
-def load_students():
-    try:
-        with open('students.json', 'r', encoding='utf-8') as f:
-            students = json.load(f)
-            return students
-    except FileNotFoundError:#预防文件不存在的情况
-        return []#返回空列表, 避免主程序拿到None从而崩溃
+    #提交并关闭
+    conn.commit()
+    conn.close()
+    print("添加学生成功！")
 
 
 #展示所有学生
-def show_students(students):
-    #如果没有学生
-    if len(students) == 0:
+def show_students():
+    #连接数据库
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+
+    #查询所有学生
+    cursor.execute("SELECT * FROM students")
+    rows = cursor.fetchall()#rows接住结果(元组)
+
+    conn.close()
+
+    if len(rows) == 0:
         print('暂无学生.')
         return
 
-    #遍历列表, 提取学生字典
-    for index, student in enumerate(students, start=1):
-        print(f'{index}. {student["name"]} | '
-              f'{student["grade"]} | '
-              f'{student["subject"]} | '
-              f'{student["contact"]} | '
-              f'{student["note"]} ')
-
-
-#将课程信息保存到文件
-def save_lessons(lessons):
-    with open('lessons.json', 'w', encoding='utf-8') as f:
-        json.dump(lessons, f, ensure_ascii=False, indent=4)
+    #遍历打印
+    for index, row in enumerate(rows, start=1):
+        #row0=id,name,grade,subject,contact,note
+        print(f'{index}. {row[1]} | {row[2]} | {row[3]} | {row[4]} | {row[5]}')
 
 
 #选择学生(返回学生姓名
-def choose_student(students):
-    #展示学生列表供选择
-    show_students(students)
+def choose_student():
+    #连接数据库,查出id和name
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT id,name FROM students")
+    rows = cursor.fetchall()
+    conn.close()
 
+    if len(rows) == 0:
+        print('请先添加学生!')
+        return None,None #id和name是两个占位符
+
+    #遍历展示学生列表
+    for index, row in enumerate(rows, start=1):
+        print(f'{index}. {row[1]}')
+
+    #获取用户选择并校验
     choice = input('请输入被选择学生的序号: ').strip()
-
     try:
-        # 把字符串转为整数, 并且用户索引为1, 计算机索引为0, 故减1
         index = int(choice) - 1
     except ValueError:
-        print('输入无效, 请输入数字! ')
-        return
+        print('输入无效，请输入数字！')
+        return None, None
 
-    if index < 0 or index >= len(students):
-        print('序号不存在, 请重新选择!')
-        return
+    if index < 0 or index >= len(rows):
+        print('序号不存在，请重新选择！')
+        return None, None
 
-    student_name = students[index]['name']
+    #获取选中学生的id和name
+    student_id = rows[index][0]
+    student_name = rows[index][1]
 
-    return student_name
+    return student_id, student_name
 
 
 #添加课时记录
-def add_lesson(lessons, students):
-    #如果没有学生
-    if len(students) == 0:
-        print('请先添加学生!')
-        return
-
+def add_lesson():
     #选择学生
-    student_name = choose_student(students)
-
-    #防止student_name获取失败(None)
-    if student_name is None: return
+    student_id, student_name = choose_student()
+    
+    if student_id is None:
+        return
 
     #获取日期,时长,单价,备注
     date = input('请输入上课日期: ')
@@ -112,153 +106,197 @@ def add_lesson(lessons, students):
     #计算金额
     amount = duration * rate
 
-    #上述信息打包为字典
-    lesson_info = {
-        "student_name": student_name,
-        "date": date,
-        "duration": duration,
-        "rate": rate,
-        "amount": amount,
-        "paid": paid,
-        "note": note
-    }
+    #连接数据库并插入
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
 
-    #添加到列表lessons
-    lessons.append(lesson_info)
+    #paid转为 INTEGER(0或1)
+    cursor.execute('''
+        INSERT INTO lessons (student_id, date, duration_hours, hourly_rate, amount, paid, note)
+        VALUES(?, ?, ?, ?, ?, ?, ?)
+    ''',(student_id,date,duration,rate,amount,int(paid),note))
 
-    #添加到json文件保存
-    save_lessons(lessons)
-
-    print('成功添加课时记录! ')
-
-
-#文件读取课时信息
-def load_lessons():
-    try:
-        with open('lessons.json', 'r', encoding='utf-8') as f:
-            lessons = json.load(f)
-            return lessons
-    except FileNotFoundError:
-        return []
+    conn.commit()
+    conn.close()
+    print(f'成功为{student_name}添加课时记录!')
 
 
 #展示课时信息
-def show_lessons(lessons):
-    if len(lessons) == 0:
+def show_lessons():
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+
+    #连表查询
+    cursor.execute('''
+        SELECT lessons.id, students.name, lessons.date, lessons.duration_hours,
+        lessons.hourly_rate, lessons.amount, lessons.paid, lessons.note
+        FROM lessons
+        JOIN students ON lessons.student_id = students.id
+    ''')
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    if len(rows) == 0:
         print('暂无课时记录.')
         return
-    for index, lesson in enumerate(lessons, start=1):
-        print(f'{index}. {lesson["student_name"]} | '
-              f'{lesson["date"]} | '
-              f'{lesson["duration"]}小时 | '
-              f'{lesson["rate"]}元/时 | '
-              f'{lesson["amount"]}元 '
-              f'{"已付" if lesson["paid"] else "未付"} | '
-              f'{lesson["note"]}'
-        )
+
+    #遍历打印
+    for index, row in enumerate(rows, start=1):
+    #row1=student.name,2=date,3=duration_hours,4=hourly_rate,5=amount,6=paid,7=note
+        paid_text = '已付' if row[6] else '未付'
+        print(f'{index}. {row[1]} | ' 
+              f'{row[2]} | '
+              f'{row[3]}小时 | '
+              f'{row[4]}元/时 | '
+              f'{row[5]}元 | '
+              f'{paid_text} | '
+              f'{row[7]}'
+              )
 
 
 #按学生筛选课时
-def filter_lessons_by_student(lessons, students):
-    if len(lessons) == 0:
-        print('暂无课时记录.')
-        return
-    if len(students) == 0:
-        print('请先添加学生.')
-        return
-
+def filter_lessons_by_student():
     #选择学生
-    target_name = choose_student(students)
+    student_id, student_name = choose_student()
+
     #如果失败直接结束
-    if target_name is None: return
+    if student_id is None: return
 
-    #筛选过程(遍历
-    filtered_lessons = []
-    for lesson in lessons:
-        if lesson['student_name'] == target_name:
-            filtered_lessons.append(lesson)
+    #连表查询
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT lessons.id, students.name, lessons.date, lessons.duration_hours, 
+               lessons.hourly_rate, lessons.amount, lessons.paid, lessons.note
+        FROM lessons
+        JOIN students ON lessons.student_id = students.id
+        WHERE lessons.student_id = ?
+    ''',(student_id,)) #cursor.excute接收两个参数
+    rows = cursor.fetchall()
+    conn.close()
 
-    #展示结果
-    show_lessons(filtered_lessons)
+    if len(rows) == 0:
+        print(f'{student_name} 暂无课时记录.')
+        return
+
+    #遍历打印
+    for index, row in enumerate(rows,start=1):
+        paid_text = "已付" if row[6] else "未付"
+        print(f'{index}. {row[1]} | '
+              f'{row[2]} | '
+              f'{row[3]}小时 | '
+              f'{row[4]}元/时 | '
+              f'{row[5]}元 | '
+              f'{paid_text} | '
+              f'{row[7]}'
+              )
 
 
 #按月份筛选课时
-def filter_lessons_by_month(lessons):
-    if len(lessons) == 0:
-        print('暂无课时记录.')
+def filter_lessons_by_month():
+    #输入目标年月
+    target_month = input('请输入月份(格式如2026-10): ').strip()
+
+    #连表查询
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT lessons.id, students.name, lessons.date, lessons.duration_hours, 
+        lessons.hourly_rate, lessons.amount, lessons.paid, lessons.note
+        FROM lessons
+        JOIN students ON lessons.student_id = students.id
+        WHERE lessons.date LIKE ?
+    ''',(target_month + '%',))
+    rows = cursor.fetchall()
+    conn.close()
+
+    if len(rows) == 0:
+        print(f'{target_month} 暂无课时记录.')
         return
 
-    #输入目标年月
-    target_month = input('请输入月份(格式如2026-10): ')
+    for index, row in enumerate(rows, start=1):
+        paid_text = "已付" if row[6] else "未付"
+        print(f'{index}. {row[1]} | '
+              f'{row[2]} | '
+              f'{row[3]}小时 | '
+              f'{row[4]}元/时 | '
+              f'{row[5]}元 | '
+              f'{paid_text} | '
+              f'{row[7]}'
+              )
 
-    #遍历寻找
-    filtered_lessons = []
-
-    for lesson in lessons:
-        if lesson['date'].startswith(target_month):
-            filtered_lessons.append(lesson)
-
-    #展示结果
-    show_lessons(filtered_lessons)
 
 
 #标记已付/未付
-def mark_lesson_paid(lessons):
-    if len(lessons) == 0:
+def mark_lesson_paid():
+    show_lessons()
+
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM lessons ORDER BY id ASC')
+    rows = cursor.fetchall()
+    conn.close()
+
+    if len(rows) == 0:
         print('暂无课时记录.')
         return
 
-    show_lessons(lessons)
     choice = input('请输入课时记录序号: ').strip()
     try:
         index = int(choice) - 1
     except ValueError:
         print('输入无效, 请输入数字序号! ')
         return
-    if index < 0 or index >= len(lessons):
+    if index < 0 or index >= len(rows):
         print('序号不存在, 请重新选择! ')
         return
 
-    #取出记录
-    lesson = lessons[index]
+    #获取真实id(防止删改导致id缺失, 如1345, 显示为1234
+    real_lesson_id = rows[index][0]
 
     #.lower()确保输入为小写
     paid_input = input("请输入状态(已付输入y, 未付输入n): ").strip().lower()
-    #如果y则True, 如果不等y则False
-    lesson["paid"] = (paid_input == 'y')
+    new_paid = 1 if paid_input == 'y' else 0
 
-    #保存文件
-    save_lessons(lessons)
+    #UPDATE语句
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE lessons SET paid = ? WHERE id = ?'
+                   ,(new_paid, real_lesson_id))
+    conn.commit()
+    conn.close()
 
     print('已成功修改标记')
 
 
 #统计月收入
-def calculate_monthly_income(lessons):
-    if len(lessons) == 0:
-        print('暂无课时记录.')
+def calculate_monthly_income():
+    target_month = input('请输入月份(格式如2026-10): ').strip()
+
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT
+            SUM(duration_hours),
+            SUM(amount),
+            SUM(CASE WHEN paid=1 THEN amount ELSE 0 END),
+            SUM(CASE WHEN paid=0 THEN amount ELSE 0 END)
+        FROM lessons
+        WHERE date LIKE ?
+    ''',(target_month + '%',))
+
+    row = cursor.fetchone() #fetchone只拿一行
+    conn.close()
+
+    if row is None or row[0] is None:
+        print(f'{target_month} 暂无课时记录，无法统计.')
         return
 
-    target_month = input('请输入月份(格式如2026-10): ')
-    filtered_lessons = []
-    for lesson in lessons:
-        if lesson['date'].startswith(target_month):
-            filtered_lessons.append(lesson)
-
-    #初始化累加器
-    total_duration = 0 #总课时
-    total_income = 0   #应收总额
-    paid_income = 0    #已收总额
-    unpaid_income = 0  #未收总额
-
-    #遍历累加
-    for lesson in filtered_lessons:
-        total_duration += lesson["duration"]
-        total_income += lesson["amount"]
-        if lesson["paid"]:
-            paid_income += lesson["amount"]
-        else:
-            unpaid_income += lesson["amount"]
+    total_duration = row[0]
+    total_income = row[1]
+    paid_income = row[2]
+    unpaid_income = row[3]
 
     #打印结果
     print(f'''
@@ -271,28 +309,40 @@ def calculate_monthly_income(lessons):
 
 
 #导出csv
-def export_lessons_to_csv(lessons):
-    if len(lessons) == 0:
+def export_lessons_to_csv():
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT students.name, lessons.date, lessons.duration_hours,
+            lessons.hourly_rate, lessons.amount, lessons.paid, lessons.note
+        FROM lessons
+        JOIN students ON students.id = lessons.student_id
+        ORDER BY lessons.date ASC
+    ''')
+    rows = cursor.fetchall()
+    conn.close()
+
+    if len(rows) == 0:
         print('暂无课时记录，无法导出。')
         return
 
     with open('lessons.csv', 'w', encoding='utf-8-sig', newline='') as f:
         writer = csv.writer(f) #把文件变成csv写入器
-        writer.writerow(['student_name','date', 'duration', 'rate', 'amount', 'paid', 'note'])
-
-        for lesson in lessons:
-            #把paid从True/False转为'已付/未付'(数据清洗
-            paid_text = '已付' if lesson['paid'] else '未付'
-
+        #写表头
+        writer.writerow(['学生姓名','日期', '时长(小时)', '单价(元)', '金额(元)', '是否已付', '备注'])
+        #写数据
+        for row in rows:
+            #row=0姓名,1日期,2时长,3单价,4金额,5paid,6备注
+            paid_text = '已付' if row[5] == 1 else '未付'
             writer.writerow(
                 [
-                    lesson['student_name'],
-                    lesson['date'],
-                    lesson["duration"],
-                    lesson["rate"],
-                    lesson["amount"],
+                    row[0],
+                    row[1],
+                    row[2],
+                    row[3],
+                    row[4],
                     paid_text,
-                    lesson['note']
+                    row[6]
                 ]
             )
 
@@ -310,9 +360,6 @@ def get_float_input(prompt):
 
 #主函数
 if __name__ == '__main__':
-    students = load_students()
-    lessons = load_lessons()
-
     while True:
         #打印菜单
         print('''
@@ -333,23 +380,23 @@ if __name__ == '__main__':
         choice = input('请输入数字: ').strip()
 
         if choice == '1':
-            add_student(students)
+            add_student()
         elif choice == '2':
-            show_students(students)
+            show_students()
         elif choice == '3':
-            add_lesson(lessons,students)
+            add_lesson()
         elif choice == '4':
-            show_lessons(lessons)
+            show_lessons()
         elif choice == '5':
-            filter_lessons_by_student(lessons, students)
+            filter_lessons_by_student()
         elif choice == '6':
-            filter_lessons_by_month(lessons)
+            filter_lessons_by_month()
         elif choice == '7':
-            mark_lesson_paid(lessons)
+            mark_lesson_paid()
         elif choice == '8':
-            calculate_monthly_income(lessons)
+            calculate_monthly_income()
         elif choice == '9':
-            export_lessons_to_csv(lessons)
+            export_lessons_to_csv()
         elif choice == '0':
             print('已退出程序.')
             break

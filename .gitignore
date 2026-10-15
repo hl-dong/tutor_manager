@@ -10,6 +10,6 @@ __pycache__/
 *.pyc
 
 # 本地数据文件
-students.json
-lessons.json
-lessons.csv
+*.json
+*.csv
+*.db
