@@ -104,7 +104,7 @@ def add_lesson():
     paid = (input('请输入是否已付(是为y,否为n): ')).strip().lower() =='y'
 
     #计算金额
-    amount = duration * rate
+    amount = calculate_amount(duration, rate)
 
     #连接数据库并插入
     conn = sqlite3.connect('tutor.db')
@@ -356,6 +356,10 @@ def get_float_input(prompt):
         except ValueError:
             print('输入无效, 请输入数字')
 
+
+#根据时长和单价计算总金额
+def calculate_amount(duration, rate):
+    return duration * rate
 
 
 #主函数
