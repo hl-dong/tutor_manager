@@ -362,6 +362,89 @@ def calculate_amount(duration, rate):
     return duration * rate
 
 
+#删除课程记录
+def delete_lessons():
+    show_lessons()
+
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM lessons ORDER BY id ASC')
+    rows = cursor.fetchall()
+    conn.close()
+
+    if len(rows) == 0:
+        print('暂无课时记录.')
+        return
+
+    choice = input('请输入要删除的课时记录序号: ').strip()
+    try:
+        index = int(choice) - 1
+    except ValueError:
+        print('输入无效, 请输入数字序号! ')
+        return
+    if index < 0 or index >= len(rows):
+        print('序号不存在, 请重新选择! ')
+        return
+
+    real_lesson_id = rows[index][0]
+
+    confirm = input('确认要删除吗?(y/n):').strip().lower()
+    if confirm != 'y':
+        print('已取消')
+        return
+
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM lessons WHERE id = ?',(real_lesson_id,))
+    conn.commit()
+    conn.close()
+    print('删除成功')
+
+
+#修改课程记录
+def update_lessons():
+    show_lessons()
+
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM lessons ORDER BY id ASC')
+    rows = cursor.fetchall()
+    conn.close()
+
+    if len(rows) == 0:
+        print('暂无课时记录.')
+        return
+
+    choice = input('请输入要修改的课时记录序号: ').strip()
+    try:
+        index = int(choice) - 1
+    except ValueError:
+        print('输入无效, 请输入数字序号! ')
+        return
+    if index < 0 or index >= len(rows):
+        print('序号不存在, 请重新选择! ')
+        return
+
+    real_lesson_id = rows[index][0]
+
+    date = input('请输入新日期: ')
+    duration = get_float_input('请输入新时长(小时): ')
+    rate = get_float_input('请输入新单价(元): ')
+    note = input('请输入新备注: ')
+    paid = (input('请输入是否已付(y/n): ')).strip().lower() == 'y'
+    amount = calculate_amount(duration, rate)
+
+    conn = sqlite3.connect('tutor.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE lessons SET date=?, duration_hours=?, '
+                   'hourly_rate=?, amount=?, paid=?, note=? WHERE id=?'
+                   ,(date, duration, rate, amount, int(paid), note, real_lesson_id))
+    conn.commit()
+    conn.close()
+    print('修改成功')
+
+
+
 #主函数
 if __name__ == '__main__':
     while True:
@@ -377,30 +460,25 @@ if __name__ == '__main__':
 7. 标记已付/未付
 8. 统计月收入
 9. 导出课时csv
+10. 删除课时记录
+11. 修改课时记录
 0. 退出
         ''')
 
         #获取用户选择(strip去除首尾空白字符)
         choice = input('请输入数字: ').strip()
 
-        if choice == '1':
-            add_student()
-        elif choice == '2':
-            show_students()
-        elif choice == '3':
-            add_lesson()
-        elif choice == '4':
-            show_lessons()
-        elif choice == '5':
-            filter_lessons_by_student()
-        elif choice == '6':
-            filter_lessons_by_month()
-        elif choice == '7':
-            mark_lesson_paid()
-        elif choice == '8':
-            calculate_monthly_income()
-        elif choice == '9':
-            export_lessons_to_csv()
+        if choice == '1': add_student()
+        elif choice == '2': show_students()
+        elif choice == '3': add_lesson()
+        elif choice == '4': show_lessons()
+        elif choice == '5': filter_lessons_by_student()
+        elif choice == '6': filter_lessons_by_month()
+        elif choice == '7': mark_lesson_paid()
+        elif choice == '8': calculate_monthly_income()
+        elif choice == '9': export_lessons_to_csv()
+        elif choice == '10': delete_lessons()
+        elif choice == '11': update_lessons()
         elif choice == '0':
             print('已退出程序.')
             break
